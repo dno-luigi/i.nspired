@@ -39,7 +39,41 @@ export default function Home() {
   return (
     <>
       <section className="border-b border-line py-[72px] pb-14">
-        <div className="shell grid items-end gap-12 lg:grid-cols-[1.35fr_0.65fr] max-lg:gap-8">
+        <div className="shell">
+          <Reveal y={12} amount={0.15}>
+            <div className="rounded-base border border-l-4 border-line border-l-primary bg-surface p-5">
+              <div className="flex items-start gap-3.5">
+                <svg
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  className="mt-0.5 h-6 w-6 shrink-0 text-primary"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5" />
+                  <path d="M13 3l5 5v3" />
+                  <path d="M13 3v5h5" />
+                  <circle cx="16.5" cy="16.5" r="2.5" />
+                  <path d="m18.4 18.4 2.1 2.1" />
+                </svg>
+                <div>
+                  <p className="text-[1.15rem] font-semibold leading-snug">Looking for the Truth Engine?</p>
+                  <p className="mt-1 text-[0.95rem] text-muted">
+                    This is where it used to be. You can find it here now.
+                  </p>
+                </div>
+              </div>
+              <Link to="/engine" className="btn btn-primary mt-4 w-full">
+                Go to the Truth Engine <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </div>
+          </Reveal>
+        </div>
+
+        <div className="shell mt-12 grid items-end gap-12 lg:grid-cols-[1.35fr_0.65fr] max-lg:gap-8 max-lg:mt-10">
           <div>
             <Reveal y={14}>
               <span className="mb-[22px] inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/[0.06] px-3 py-1.5 font-mono text-[0.7rem] uppercase tracking-[0.12em] text-primary">
