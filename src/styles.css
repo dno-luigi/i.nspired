@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --c-bg: 251 251 249;
+  --c-surface: 241 242 238;
+  --c-ink: 18 26 20;
+  --c-muted: 94 102 96;
+  --c-line: 226 228 222;
+  --c-primary: 15 107 79;
+  --c-primary-dark: 11 85 64;
+  --c-primary-ink: 255 255 255;
+  --c-accent: 232 177 0;
+  --c-danger: 155 44 31;
+
+  --radius: 10px;
+  --shell: 1120px;
+
+  color-scheme: light;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-bg font-body text-ink;
+    line-height: 1.6;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: rgb(var(--c-primary) / 0.15);
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply font-mono text-[0.72rem] uppercase tracking-[0.16em] text-muted;
+  }
+
+  .shell {
+    @apply mx-auto w-full max-w-shell px-6;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-base border border-transparent px-5 py-3 text-[0.95rem] font-medium no-underline transition-colors;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-ink hover:bg-primary-dark;
+  }
+
+  .btn-ghost {
+    @apply border-line bg-transparent text-ink hover:border-muted;
+  }
+
+  .btn-sm {
+    @apply px-3.5 py-2 text-[0.86rem];
+  }
+
+  .card {
+    @apply flex flex-col gap-2 rounded-base border border-line bg-bg p-6;
+  }
+}
+
+/* Rendered audit report (markdown), in the site palette. */
+.report { font-size: 0.98rem; line-height: 1.72; word-break: break-word; }
+.report p { margin: 0 0 0.75rem; }
+.report h1, .report h2, .report h3 {
+  color: rgb(var(--c-primary));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.92rem;
+  margin: 1.25rem 0 0.5rem;
+}
+.report ul, .report ol { padding-left: 1.2rem; margin: 0 0 0.75rem; }
+.report li { margin-bottom: 0.25rem; }
+.report strong { color: rgb(var(--c-primary)); font-weight: 600; }
+.report code { background: rgb(var(--c-primary) / 0.08); color: rgb(var(--c-primary)); padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+.report pre { background: rgb(var(--c-surface)); border: 1px solid rgb(var(--c-line)); border-radius: var(--radius); padding: 14px; overflow-x: auto; margin: 0.9rem 0; }
+.report pre code { background: none; padding: 0; color: inherit; }
+.report blockquote { border-left: 2px solid rgb(var(--c-primary)); padding-left: 12px; color: rgb(var(--c-muted)); margin: 0.75rem 0; font-style: italic; }
+.report a { text-decoration: underline; text-underline-offset: 3px; }
