@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Reveal from '../components/Reveal';
 import { WORKER_BASE } from '../config';
-import { runAudit, storeAudit, AuditHttpError } from '../lib/truthEngine';
+import { runAudit, storeAudit, fetchAudit, AuditHttpError } from '../lib/truthEngine';
 import { isDictationSupported, startDictation, isSpeechSupported, speakText, stopSpeech } from '../lib/voice';
 
 // The line the old front end sent as the first message. The Worker uses a
@@ -123,6 +123,8 @@ export default function Engine() {
   const [listening, setListening] = useState(null); // 'notes' | 'followup' | null
   const [interim, setInterim] = useState('');
   const [speaking, setSpeaking] = useState(false);
+  const [recall, setRecall] = useState('');
+  const [recalling, setRecalling] = useState(false);
 
   const started = thread.length > 0;
   const canRun = !busy && notes.trim().length > 0;
@@ -259,6 +261,55 @@ export default function Engine() {
       setSpeaking(true);
     } catch (e) {
       setError({ message: (e && e.message) || 'Reading aloud could not start.' });
+    }
+  }
+
+  // A link from somewhere else (/engine?audit=<id>) brings that audit back up.
+  const linkedLoaded = useRef(false);
+  useEffect(() => {
+    if (linkedLoaded.current) return;
+    linkedLoaded.current = true;
+
+    const wanted = new URLSearchParams(window.location.search).get('audit');
+    if (!wanted) return;
+
+    // Drop the query so a reload does not fetch it a second time.
+    if (window.history && window.history.replaceState) window.history.replaceState(null, '', '/engine');
+    loadAudit(wanted);
+  }, []);
+
+  // Pull a stored audit back up from its id, its permalink, or a /a/ page link.
+  async function loadAudit(input) {
+    const raw = String(input || '').trim();
+    if (!raw || recalling) return;
+
+    const id = raw.split('?')[0].replace(/\/+$/, '').split('/').pop();
+    if (!id) return;
+
+    setRecalling(true);
+    setError(null);
+    setStatus({ text: `Looking up ${id}`, busy: true });
+
+    try {
+      const audit = await fetchAudit({ base: WORKER_BASE, id });
+      stopDictation();
+      stopReadAloud();
+      setThread(audit.messages.filter((m) => m.role !== 'system'));
+      messagesRef.current = audit.messages;
+      auditIdRef.current = audit.auditId;
+      setAuditId(audit.auditId);
+      setStreaming('');
+      setThinking('');
+      setRestored(false);
+      setRecall('');
+      setStatus({ text: `Loaded audit ${audit.auditId}` });
+    } catch (e) {
+      const message =
+        e instanceof AuditHttpError ? e.message : (e && e.message) || 'That audit could not be loaded.';
+      setError({ message });
+      setStatus({ text: message, warn: true });
+    } finally {
+      setRecalling(false);
     }
   }
 
@@ -484,6 +535,34 @@ export default function Engine() {
             </div>
           ) : null}
 
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-base border border-line bg-bg px-3 py-2">
+            <label className="eyebrow whitespace-nowrap" htmlFor="audit-recall">
+              Recall
+            </label>
+            <input
+              id="audit-recall"
+              value={recall}
+              onChange={(e) => setRecall(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') loadAudit(recall);
+              }}
+              placeholder="audit id or link"
+              disabled={busy || recalling}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="min-w-0 flex-1 bg-transparent font-mono text-[0.84rem] text-ink outline-none placeholder:text-muted"
+            />
+            <button
+              type="button"
+              onClick={() => loadAudit(recall)}
+              disabled={busy || recalling || !recall.trim()}
+              className="tool-btn"
+            >
+              {recalling ? 'Loading' : 'Load'}
+            </button>
+          </div>
+
           <div className="mt-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <label className="eyebrow block" htmlFor="audit-input">
@@ -672,6 +751,9 @@ export default function Engine() {
               className="text-primary"
             >
               permalink
+            </a>
+            <a href={`/a/${encodeURIComponent(auditId)}`} className="text-primary">
+              page
             </a>
           </div>
         ) : null}

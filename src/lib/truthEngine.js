@@ -46,9 +46,18 @@ async function readError(res) {
   } catch (e) {
     parsed = null;
   }
-  const code = (parsed && parsed.code) || `http_${res.status}`;
+  // The Worker answers errors as { error: 'audit_not_found' } — a token, not a
+  // sentence. Keep it as the code and give the person something readable.
+  const token =
+    parsed && typeof parsed.error === 'string' && /^[a-z][a-z0-9_]*$/.test(parsed.error) ? parsed.error : null;
+  const code = (parsed && parsed.code) || token || `http_${res.status}`;
   const message =
-    (parsed && (parsed.error || parsed.message)) || raw || res.statusText || 'The Worker refused the request.';
+    (parsed && (parsed.message || parsed.detail)) ||
+    (res.status === 404 ? 'Nothing is stored under that id.' : null) ||
+    (parsed && parsed.error) ||
+    raw ||
+    res.statusText ||
+    'The Worker refused the request.';
   return new AuditHttpError(res.status, code, typeof message === 'string' ? message : JSON.stringify(message));
 }
 
@@ -135,6 +144,69 @@ export async function runAudit({ base, messages, auditId, onDelta, onReasoning, 
     throw new Error('The Worker streamed no text. Check OPENROUTER_API_KEY and the @preset/truth preset.');
   }
   return { text, reasoning };
+}
+
+// The stored record is rebuilt from what /v1/audit/store was sent, but read it
+// defensively: an older audit, or one written by another client, may carry the
+// conversation under a different key.
+export function normalizeAudit(json, fallbackId) {
+  if (!json || typeof json !== 'object') return null;
+  const record = json.audit && typeof json.audit === 'object' ? json.audit : json;
+
+  const auditId = String(record.audit_id || record.auditId || record.id || fallbackId || '').trim();
+  const content = typeof record.content === 'string' ? record.content : '';
+  const fullText =
+    typeof record.fullText === 'string'
+      ? record.fullText
+      : typeof record.full_text === 'string'
+        ? record.full_text
+        : '';
+
+  const source = Array.isArray(record.messages)
+    ? record.messages
+    : Array.isArray(record.conversation)
+      ? record.conversation
+      : [];
+
+  let messages = source
+    .filter((m) => m && typeof m === 'object' && typeof m.role === 'string')
+    .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : String(m.content || '') }));
+
+  if (!messages.length && fullText) {
+    messages = [
+      ...(content ? [{ role: 'user', content }] : []),
+      { role: 'assistant', content: fullText },
+    ];
+  }
+
+  if (!messages.length) return null;
+
+  return {
+    auditId: auditId || 'unknown',
+    content,
+    fullText,
+    messages,
+    createdAt: record.created_at || record.createdAt || null,
+  };
+}
+
+// Brings a stored audit back up from its id or permalink.
+export async function fetchAudit({ base, id, signal }) {
+  const key = String(id || '').trim();
+  if (!key) throw new AuditHttpError(400, 'missing_audit_id', 'An audit id is needed.');
+
+  const res = await fetch(`${base}/v1/audit/${encodeURIComponent(key)}`, {
+    headers: { accept: 'application/json' },
+    signal,
+  });
+  if (!res.ok) throw await readError(res);
+
+  const json = await res.json().catch(() => null);
+  const audit = normalizeAudit(json, key);
+  if (!audit) {
+    throw new AuditHttpError(502, 'audit_unreadable', 'The Worker returned something that is not an audit.');
+  }
+  return audit;
 }
 
 // Saves the audit and returns its id. Without this there is no permalink.
