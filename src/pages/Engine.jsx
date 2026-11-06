@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import Reveal from '../components/Reveal';
 import { WORKER_BASE } from '../config';
 import { runAudit, storeAudit, AuditHttpError } from '../lib/truthEngine';
+import { isDictationSupported, startDictation, isSpeechSupported, speakText, stopSpeech } from '../lib/voice';
 
 // The line the old front end sent as the first message. The Worker uses a
 // supplied `messages` array verbatim, so this is what shapes the audit.
@@ -45,6 +46,52 @@ function ThreadBlock({ role, note, children }) {
   );
 }
 
+// The phrase in flight, shown while it is still being corrected by the engine.
+function Heard({ text }) {
+  return (
+    <p className="mb-2 flex items-start gap-2 rounded-base border border-primary/30 bg-primary/[0.05] px-3 py-2 text-[0.84rem] leading-snug text-muted">
+      <span className="mt-[3px] block h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" />
+      <span>{text}</span>
+    </p>
+  );
+}
+
+function PaperclipIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.5 11.5 12 20a5.25 5.25 0 0 1-7.42-7.42l8.13-8.13a3.5 3.5 0 0 1 4.95 4.95l-8.13 8.13a1.75 1.75 0 0 1-2.47-2.47l7.42-7.42" />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="9" y="2.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+      <path d="M12 17.5V21" />
+    </svg>
+  );
+}
+
 export default function Engine() {
   const savedRef = useRef(null);
   if (savedRef.current === null) savedRef.current = readSaved();
@@ -69,6 +116,13 @@ export default function Engine() {
   const messagesRef = useRef(Array.isArray(saved.messages) ? saved.messages : []);
   const auditIdRef = useRef(saved.auditId || null);
   const fileRef = useRef(null);
+  const dictationRef = useRef(null);
+  const dictationSeq = useRef(0);
+  const speakingRef = useRef(null);
+
+  const [listening, setListening] = useState(null); // 'notes' | 'followup' | null
+  const [interim, setInterim] = useState('');
+  const [speaking, setSpeaking] = useState(false);
 
   const started = thread.length > 0;
   const canRun = !busy && notes.trim().length > 0;
@@ -86,6 +140,128 @@ export default function Engine() {
     }
   }, [notes, thread, auditId]);
 
+  // Leaving the page must not leave the microphone open or the phone talking to
+  // an empty room.
+  useEffect(
+    () => () => {
+      dictationSeq.current += 1;
+      if (dictationRef.current) dictationRef.current.stop();
+      if (speakingRef.current) speakingRef.current.stop();
+      stopSpeech();
+    },
+    []
+  );
+
+  function stopDictation() {
+    // Bumping the sequence makes every pending callback from the old session
+    // inert, so a late result cannot land in a box the person has moved on from.
+    dictationSeq.current += 1;
+    if (dictationRef.current) {
+      dictationRef.current.stop();
+      dictationRef.current = null;
+    }
+    setListening(null);
+    setInterim('');
+  }
+
+  function appendSpoken(target, text) {
+    const clean = text.replace(/\s+/g, ' ').trim();
+    if (!clean) return;
+    const join = (prev) => (prev && !/\s$/.test(prev) ? `${prev} ${clean}` : `${prev || ''}${clean}`);
+    if (target === 'followup') setFollowup(join);
+    else setNotes(join);
+  }
+
+  function toggleDictation(target) {
+    if (listening === target) {
+      stopDictation();
+      return;
+    }
+    stopDictation();
+
+    if (!isDictationSupported()) {
+      setError({ message: 'This browser cannot dictate. Type or paste instead, or open the page in Chrome or Safari.' });
+      return;
+    }
+
+    setError(null);
+    const seq = (dictationSeq.current += 1);
+    const stillMine = () => seq === dictationSeq.current;
+
+    try {
+      dictationRef.current = startDictation({
+        onFinal: (text) => {
+          if (stillMine()) appendSpoken(target, text);
+        },
+        onInterim: (text) => {
+          if (stillMine()) setInterim(text);
+        },
+        onError: (code) => {
+          if (!stillMine()) return;
+          setError({
+            message:
+              code === 'not-allowed' || code === 'service-not-allowed'
+                ? 'Microphone access was refused. Allow it for this site in the browser settings, then tap Dictate again.'
+                : code === 'audio-capture'
+                  ? 'No microphone was found on this device.'
+                  : code === 'network'
+                    ? 'Dictation needs a connection to the browser’s speech service.'
+                    : `Dictation stopped: ${code}.`,
+          });
+        },
+        onEnd: () => {
+          if (!stillMine()) return;
+          dictationRef.current = null;
+          setListening(null);
+          setInterim('');
+        },
+      });
+      setListening(target);
+      setInterim('');
+    } catch (e) {
+      setError({ message: (e && e.message) || 'Dictation could not start.' });
+    }
+  }
+
+  function stopReadAloud() {
+    if (speakingRef.current) {
+      speakingRef.current.stop();
+      speakingRef.current = null;
+    }
+    stopSpeech();
+    setSpeaking(false);
+  }
+
+  function toggleReadAloud() {
+    if (speaking) {
+      stopReadAloud();
+      return;
+    }
+    if (!fullReport) return;
+    if (!isSpeechSupported()) {
+      setError({ message: 'This browser cannot read text aloud.' });
+      return;
+    }
+
+    setError(null);
+    try {
+      speakingRef.current = speakText(fullReport, {
+        onEnd: () => {
+          speakingRef.current = null;
+          setSpeaking(false);
+        },
+        onError: () => {
+          speakingRef.current = null;
+          setSpeaking(false);
+          setError({ message: 'Reading aloud stopped unexpectedly.' });
+        },
+      });
+      setSpeaking(true);
+    } catch (e) {
+      setError({ message: (e && e.message) || 'Reading aloud could not start.' });
+    }
+  }
+
   async function onPickFiles(ev) {
     const files = Array.from(ev.target.files || []);
     if (!files.length) return;
@@ -97,12 +273,11 @@ export default function Engine() {
     for (const file of files) {
       try {
         const { readFileToText } = await import('../lib/files');
-        const { text, pages } = await readFileToText(file);
+        const { text, pages, note } = await readFileToText(file);
         // Same shape the old front end appended into the box.
         setNotes((prev) => `${prev}\n\n--- ${file.name} ---\n${text}`.trimStart());
-        setStatus({
-          text: `Added ${file.name}${pages ? ` (${pages} page${pages === 1 ? '' : 's'})` : ''}`,
-        });
+        const detail = pages ? `${pages} page${pages === 1 ? '' : 's'}` : note;
+        setStatus({ text: `Added ${file.name}${detail ? ` (${detail})` : ''}` });
       } catch (e) {
         setError({ message: `${file.name}: ${(e && e.message) || 'could not be read'}` });
         setStatus(null);
@@ -188,6 +363,11 @@ export default function Engine() {
     const content = notes.trim();
     if (!content || busy) return;
 
+    // Neither the microphone nor the speaker belongs in the middle of an audit:
+    // anything dictated now would land in a box that is about to be cleared.
+    stopDictation();
+    stopReadAloud();
+
     const history = [{ role: 'system', content: SYSTEM_PROMPT }];
     messagesRef.current = history;
     auditIdRef.current = null;
@@ -201,6 +381,8 @@ export default function Engine() {
   async function runFollowup() {
     const content = followup.trim();
     if (!content || busy) return;
+    stopDictation();
+    stopReadAloud();
     setFollowup('');
     const ok = await send({ userContent: content, history: messagesRef.current });
     if (!ok) setFollowup(content);
@@ -256,7 +438,6 @@ export default function Engine() {
             ref={fileRef}
             id="docket-files"
             type="file"
-            accept=".pdf,.txt,.doc,.docx,application/pdf,text/plain"
             multiple
             onChange={onPickFiles}
             disabled={busy}
@@ -269,7 +450,7 @@ export default function Engine() {
             }`}
           >
             <span className="text-[0.95rem] font-medium">Tap to upload docket, minute order, or PDF</span>
-            <span className="text-[0.8rem] text-muted">PDF, DOC, DOCX, TXT</span>
+            <span className="text-[0.8rem] text-muted">PDF, DOCX, TXT — or any file, with the paperclip below</span>
           </label>
 
           {error ? (
@@ -304,9 +485,37 @@ export default function Engine() {
           ) : null}
 
           <div className="mt-4">
-            <label className="eyebrow mb-2 block" htmlFor="audit-input">
-              Docket text
-            </label>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <label className="eyebrow block" htmlFor="audit-input">
+                Docket text
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current && fileRef.current.click()}
+                  disabled={busy}
+                  className="tool-btn"
+                  title="Attach any file"
+                >
+                  <PaperclipIcon />
+                  Attach
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleDictation('notes')}
+                  disabled={busy}
+                  aria-pressed={listening === 'notes'}
+                  title={listening === 'notes' ? 'Stop dictating' : 'Dictate instead of typing'}
+                  className={`tool-btn ${listening === 'notes' ? 'tool-btn-on' : ''}`}
+                >
+                  <MicIcon />
+                  {listening === 'notes' ? 'Listening' : 'Dictate'}
+                </button>
+              </div>
+            </div>
+
+            {listening === 'notes' && interim ? <Heard text={interim} /> : null}
+
             <textarea
               id="audit-input"
               value={notes}
@@ -393,6 +602,22 @@ export default function Engine() {
 
         {started ? (
           <div className="mt-8">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="eyebrow">Follow-up</span>
+              <button
+                type="button"
+                onClick={() => toggleDictation('followup')}
+                disabled={busy}
+                aria-pressed={listening === 'followup'}
+                className={`tool-btn ${listening === 'followup' ? 'tool-btn-on' : ''}`}
+              >
+                <MicIcon />
+                {listening === 'followup' ? 'Listening' : 'Dictate'}
+              </button>
+            </div>
+
+            {listening === 'followup' && interim ? <Heard text={interim} /> : null}
+
             <textarea
               value={followup}
               onChange={(e) => setFollowup(e.target.value)}
@@ -412,6 +637,15 @@ export default function Engine() {
               </button>
               <button type="button" onClick={copyReport} disabled={!fullReport} className="btn btn-ghost btn-sm">
                 {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                type="button"
+                onClick={toggleReadAloud}
+                disabled={!fullReport}
+                aria-pressed={speaking}
+                className="btn btn-ghost btn-sm"
+              >
+                {speaking ? 'Stop reading' : 'Read aloud'}
               </button>
               <button type="button" onClick={shareReport} disabled={!fullReport} className="btn btn-ghost btn-sm">
                 Share

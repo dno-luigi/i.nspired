@@ -72,6 +72,25 @@
   .card {
     @apply flex flex-col gap-2 rounded-base border border-line bg-bg p-6;
   }
+
+  /* Small icon-and-label controls (attach, dictate). Quiet until pressed, and
+     tall enough for a thumb. */
+  .tool-btn {
+    @apply inline-flex min-h-[36px] items-center gap-1.5 rounded-base border border-line bg-transparent px-3 py-1.5 font-mono text-[0.7rem] uppercase tracking-[0.08em] text-muted transition-colors;
+  }
+
+  .tool-btn:hover {
+    @apply border-muted text-ink;
+  }
+
+  .tool-btn:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  .tool-btn-on {
+    @apply border-primary text-primary;
+    background: rgb(var(--c-primary) / 0.07);
+  }
 }
 
 /* Rendered audit report (markdown), in the site palette. */
