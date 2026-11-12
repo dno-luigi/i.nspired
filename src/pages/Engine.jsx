@@ -444,6 +444,39 @@ export default function Engine() {
     .map((m) => m.content)
     .join('\n\n---\n\n');
 
+  // Which step comes next, from op's rule table rather than a guess here: the
+  // route, the price and the reasons all come back in one answer.
+  const [route, setRoute] = useState(null);
+  useEffect(() => {
+    if (!fullReport) {
+      setRoute(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`${WORKER_BASE}/api/triage`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            text: fullReport.slice(0, 20000),
+            ...(auditId ? { audit: auditId } : {}),
+          }),
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (alive && data && data.copy) setRoute(data);
+      } catch {
+        // The static handoff below still offers both tiers.
+      }
+    })();
+    return () => {
+      alive = false;
+      controller.abort();
+    };
+  }, [fullReport, auditId]);
+
   async function copyReport() {
     try {
       await navigator.clipboard.writeText(fullReport);
@@ -737,23 +770,52 @@ export default function Engine() {
               <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-muted">
                 After the audit
               </p>
-              <p className="mt-1 text-[0.86rem] leading-relaxed text-ink">
-                The docket audit is free. AI Counsel takes it from here: an automated
-                motion packet <span className="font-mono">$49–$99</span>, or a deep dive
-                on a complex record <span className="font-mono">$299–$499</span>.
-              </p>
-              <a
-                href={
-                  auditId
-                    ? `https://theofficialaicounsel.com/?audit=${encodeURIComponent(auditId)}#services`
-                    : 'https://theofficialaicounsel.com/#services'
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary btn-sm mt-3 inline-flex"
-              >
-                Send this audit to AI Counsel
-              </a>
+              {route ? (
+                <>
+                  <p className="mt-1 text-[0.86rem] leading-relaxed text-ink">
+                    {route.copy.detail}
+                  </p>
+                  {route.missing && route.missing.length ? (
+                    <p className="mt-1 font-mono text-[0.72rem] text-muted">
+                      One thing would sharpen it: {route.missing[0]}.
+                    </p>
+                  ) : null}
+                  {route.href ? (
+                    <a
+                      href={route.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm mt-3 inline-flex"
+                    >
+                      {route.copy.line}
+                    </a>
+                  ) : (
+                    <p className="mt-2 text-[0.86rem] leading-relaxed text-ink">
+                      Nothing to buy here. Ask a follow-up below and keep going.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-[0.86rem] leading-relaxed text-ink">
+                    The docket audit is free. AI Counsel takes it from here: an automated
+                    motion packet <span className="font-mono">$49–$99</span>, or a deep dive
+                    on a complex record <span className="font-mono">$299–$499</span>.
+                  </p>
+                  <a
+                    href={
+                      auditId
+                        ? `https://theofficialaicounsel.com/?audit=${encodeURIComponent(auditId)}#services`
+                        : 'https://theofficialaicounsel.com/#services'
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary btn-sm mt-3 inline-flex"
+                  >
+                    Send this audit to AI Counsel
+                  </a>
+                </>
+              )}
             </div>
           </div>
         ) : null}
