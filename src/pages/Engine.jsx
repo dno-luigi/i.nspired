@@ -729,13 +729,30 @@ export default function Engine() {
               <button type="button" onClick={shareReport} disabled={!fullReport} className="btn btn-ghost btn-sm">
                 Share
               </button>
+            </div>
+
+            {/* The audit is the free step; AI Counsel is the paid one. The id
+                travels with the link so the person does not start over. */}
+            <div className="mt-4 rounded-base border border-line bg-bg/60 px-4 py-3">
+              <p className="font-mono text-[0.68rem] uppercase tracking-[0.14em] text-muted">
+                After the audit
+              </p>
+              <p className="mt-1 text-[0.86rem] leading-relaxed text-ink">
+                The docket audit is free. AI Counsel takes it from here: an automated
+                motion packet <span className="font-mono">$49–$99</span>, or a deep dive
+                on a complex record <span className="font-mono">$299–$499</span>.
+              </p>
               <a
-                href="https://theofficialaicounsel.com"
+                href={
+                  auditId
+                    ? `https://theofficialaicounsel.com/?audit=${encodeURIComponent(auditId)}#services`
+                    : 'https://theofficialaicounsel.com/#services'
+                }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-ghost btn-sm"
+                className="btn btn-primary btn-sm mt-3 inline-flex"
               >
-                Send to AI Counsel
+                Send this audit to AI Counsel
               </a>
             </div>
           </div>
