@@ -762,6 +762,20 @@ export default function Engine() {
               <button type="button" onClick={shareReport} disabled={!fullReport} className="btn btn-ghost btn-sm">
                 Share
               </button>
+              {/* Email needs no backend: the mail app opens with the audit link
+                  and the top of the report already written. */}
+              <a
+                href={`mailto:?subject=${encodeURIComponent(
+                  auditId ? `Truth Engine audit ${auditId}` : 'Truth Engine audit'
+                )}&body=${encodeURIComponent(
+                  `${auditId ? `Audit ${auditId}\nhttps://i.nspired.cc/a/${auditId}\n\n` : ''}${fullReport.slice(0, 1200)}`
+                )}`}
+                className={`btn btn-ghost btn-sm ${fullReport ? '' : 'pointer-events-none opacity-50'}`}
+                aria-disabled={!fullReport}
+                tabIndex={fullReport ? 0 : -1}
+              >
+                Email
+              </a>
             </div>
 
             {/* The audit is the free step; AI Counsel is the paid one. The id

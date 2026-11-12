@@ -9,12 +9,16 @@ const LEDGER = [
   { term: 'Next question', desc: 'Open questions and areas for further research', state: 'Queued' },
 ];
 
+const ADDRESS = 'dno@ai-n.org';
+
+// Every card goes somewhere real. /engine is ours; the rest are live sites, and
+// the Speakeasy has no door of its own yet, so its card asks for one.
 const ECOSYSTEM = [
-  { title: 'Truth Engine', body: 'Makes reasoning visible, testable and editable by experts.', to: '/engine', more: 'Open the engine' },
-  { title: 'EITL', body: 'An Expert-in-the-Loop governance framework that keeps humans accountable where AI decisions matter.' },
-  { title: 'The Official AI Counsel', body: 'Applied legal-risk clarity for founders and operators.' },
-  { title: 'The Official AI University', body: 'A practical path for human-AI collaboration.' },
-  { title: 'The Speakeasy', body: 'A private, vetted network for people building real systems, not hype.' },
+  { title: 'Truth Engine', body: 'Makes reasoning visible, testable and editable by experts.', href: '/engine', more: 'Open the engine' },
+  { title: 'EITL', body: 'An Expert-in-the-Loop governance framework that keeps humans accountable where AI decisions matter.', href: 'https://ai-n.org', more: 'Read the framework' },
+  { title: 'The Official AI Counsel', body: 'Applied legal-risk clarity for founders and operators.', href: 'https://theofficialaicounsel.com', more: 'Open AI Counsel' },
+  { title: 'The Official AI University', body: 'A practical path for human-AI collaboration.', href: 'https://theofficialaiuniversity.com', more: 'Open the academy' },
+  { title: 'The Speakeasy', body: 'A private, vetted network for people building real systems, not hype.', href: `mailto:${ADDRESS}?subject=Speakeasy%20access`, more: 'Request an invitation' },
 ];
 
 const STEPS = [
@@ -29,10 +33,12 @@ const PRINCIPLES = [
   { title: 'Private', body: 'Zero-knowledge. You own your data. We do not sell your data.' },
 ];
 
+// One inbox, three subjects: the card the person picks is the subject line, so
+// nobody has to classify themselves in prose.
 const INBOXES = [
-  { title: 'Founders and operators', body: 'You are facing a legal-risk decision and want the reasoning traced before you act.' },
-  { title: 'Expert review', body: 'You are a practitioner and want to sit in the loop on how answers are validated.' },
-  { title: 'Everything else', body: 'Press, partnerships, or a question that does not fit the other two.' },
+  { title: 'Founders and operators', body: 'You are facing a legal-risk decision and want the reasoning traced before you act.', subject: 'Legal-risk decision: context for review' },
+  { title: 'Expert review', body: 'You are a practitioner and want to sit in the loop on how answers are validated.', subject: 'Expert review: sitting in the loop' },
+  { title: 'Everything else', body: 'Press, partnerships, or a question that does not fit the other two.', subject: 'Hello from i.nspired.cc' },
 ];
 
 export default function Home() {
@@ -145,7 +151,11 @@ export default function Home() {
                 <p className="text-[0.92rem] text-muted">{card.body}</p>
                 {card.more ? (
                   <span className="mt-auto pt-2.5 font-mono text-[0.72rem] uppercase tracking-[0.1em] text-primary">
-                    <Link to={card.to}>{card.more}</Link>
+                    {card.href.startsWith('/') ? (
+                      <Link to={card.href}>{card.more}</Link>
+                    ) : (
+                      <a href={card.href}>{card.more}</a>
+                    )}
                   </span>
                 ) : null}
               </Reveal>
@@ -196,7 +206,8 @@ export default function Home() {
               Put the right context in front of the right inbox
             </h2>
             <p className="mt-3.5 text-muted">
-              Pick the inbox that fits. The Contact form opens with it already chosen. We triage daily.
+              Pick the inbox that fits. Your mail app opens with that subject already set. We
+              triage daily at <a className="text-primary" href={`mailto:${ADDRESS}`}>{ADDRESS}</a>.
             </p>
           </Reveal>
           <div className="grid gap-4 md:grid-cols-3">
@@ -204,6 +215,12 @@ export default function Home() {
               <Reveal key={box.title} delay={i * 0.07} amount={0.25} className="card">
                 <h3 className="text-[1.15rem] font-semibold">{box.title}</h3>
                 <p className="text-[0.92rem] text-muted">{box.body}</p>
+                <a
+                  href={`mailto:${ADDRESS}?subject=${encodeURIComponent(box.subject)}`}
+                  className="mt-auto pt-2.5 font-mono text-[0.72rem] uppercase tracking-[0.1em] text-primary"
+                >
+                  Write to {ADDRESS}
+                </a>
               </Reveal>
             ))}
           </div>

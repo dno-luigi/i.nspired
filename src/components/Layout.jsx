@@ -45,11 +45,27 @@ export function Nav() {
   );
 }
 
+const ELSEWHERE = [
+  { href: 'https://i.nspired.cc/engine', label: 'Truth Engine' },
+  { href: 'https://theofficialaicounsel.com', label: 'AI Counsel' },
+  { href: 'https://theofficialaiuniversity.com', label: 'AI University' },
+  { href: 'https://templates.nspired.cc', label: 'Templates' },
+  { href: 'https://ai-n.org', label: 'Foundation' },
+  { href: 'mailto:dno@ai-n.org', label: 'dno@ai-n.org' },
+];
+
 export function Footer() {
   return (
     <footer className="py-10 pb-14 text-[0.86rem] text-muted">
       <div className="shell flex flex-wrap justify-between gap-5">
         <span>&copy; AI-NSPIRED.COM</span>
+        <nav className="flex flex-wrap gap-x-5 gap-y-2">
+          {ELSEWHERE.map((l) => (
+            <a key={l.label} href={l.href} className="hover:text-ink">
+              {l.label}
+            </a>
+          ))}
+        </nav>
         <span>Not legal advice.</span>
       </div>
     </footer>
