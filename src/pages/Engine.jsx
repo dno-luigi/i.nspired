@@ -477,6 +477,12 @@ export default function Engine() {
     };
   }, [fullReport, auditId]);
 
+  // What leaves in an email is the prose, not the scoring tags the engine uses
+  // internally to show its working.
+  const emailBody = `${auditId ? `Audit ${auditId}\nhttps://i.nspired.cc/a/${auditId}\n\n` : ''}${fullReport
+    .replace(/<[A-Z][A-Z _]*:[^>]*>\s*/g, '')
+    .slice(0, 1200)}`;
+
   async function copyReport() {
     try {
       await navigator.clipboard.writeText(fullReport);
@@ -767,9 +773,7 @@ export default function Engine() {
               <a
                 href={`mailto:?subject=${encodeURIComponent(
                   auditId ? `Truth Engine audit ${auditId}` : 'Truth Engine audit'
-                )}&body=${encodeURIComponent(
-                  `${auditId ? `Audit ${auditId}\nhttps://i.nspired.cc/a/${auditId}\n\n` : ''}${fullReport.slice(0, 1200)}`
-                )}`}
+                )}&body=${encodeURIComponent(emailBody)}`}
                 className={`btn btn-ghost btn-sm ${fullReport ? '' : 'pointer-events-none opacity-50'}`}
                 aria-disabled={!fullReport}
                 tabIndex={fullReport ? 0 : -1}
